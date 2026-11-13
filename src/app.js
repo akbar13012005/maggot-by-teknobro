@@ -182,3 +182,7 @@ if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.ser
 setInterval(()=>{if($('#app-view').hidden)return;render();if(!state.demo&&state.user&&now()-lastTrendWindow>300000)subscribeTrend();},1000);
 setInterval(()=>{if(!$('#app-view').hidden)renderChart();},30000);
 renderHistory();
+
+// Enable credentials only after application initialization completes.
+for(const id of ["email","password","login-button","demo-button"]) document.getElementById(id).disabled=false;
+document.getElementById("login-error").textContent="";
