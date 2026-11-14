@@ -1,8 +1,22 @@
 #include "control.h"
 #include "relay.h"
+#include "config.h"
 #include <cassert>
+#include <initializer_list>
 using namespace maggot;
 int main(){
+ static_assert(HEATER_PIN==27 && COOLER_PIN==26,"Wiring: heater D27, cooler D26");
+ static_assert(HEATER_ACTIVE_LOW && COOLER_ACTIVE_LOW,"Both relay channels active LOW");
+ // Truth table on the actual configured GPIOs: OFF, HEAT, COOL.
+ for(Output mode : {Output::OFF,Output::HEAT,Output::COOL}){
+  int gpio[28]={};
+  gpio[HEATER_PIN]=relayLevel(mode==Output::HEAT,HEATER_ACTIVE_LOW);
+  gpio[COOLER_PIN]=relayLevel(mode==Output::COOL,COOLER_ACTIVE_LOW);
+  assert(gpio[27]==(mode==Output::HEAT?0:1));
+  assert(gpio[26]==(mode==Output::COOL?0:1));
+  assert(gpio[26] || gpio[27]);
+ }
+
  assert(relayLevel(false,true)==1);assert(relayLevel(true,true)==0);
  assert(relayLevel(false,false)==0);assert(relayLevel(true,false)==1);
  Controller persistent;persistent.automatic=false;persistent.manual=Output::COOL;persistent.leaseMs=0;

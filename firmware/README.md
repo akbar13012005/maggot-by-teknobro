@@ -1,4 +1,4 @@
-# Firmware 1.1.0 — kontrol manual dan relay
+# Firmware 1.1.1 — kontrol manual dan relay
 
 Pembaruan website saja tidak mengubah keluaran relay ESP32. Upload firmware ini
 untuk kontrol manual tanpa durasi dan pengaturan polaritas pendingin.
@@ -9,7 +9,7 @@ untuk kontrol manual tanpa durasi dan pengaturan polaritas pendingin.
    `include/relay.h` dari folder ini ke lokasi yang sama di proyek PlatformIO Anda.
 2. Pertahankan `include/secrets.h` milik Anda. Jangan unggah kredensial ke GitHub.
 3. Build lalu Upload melalui USB. Jangan lakukan Erase Flash; target dan profil
-   WiFi yang disimpan tetap digunakan. Versi pada website harus menjadi 1.1.0.
+   WiFi yang disimpan tetap digunakan. Versi pada website harus menjadi 1.1.1.
 4. Pilih Manual. Mulai dengan kedua aktuator OFF dan cek LED modul relay serta
    kipas fisik. Uji sakelar pendingin ON lalu OFF sebelum mencoba pemanas.
 
@@ -19,17 +19,25 @@ placeholder tanpa konfigurasi akun/perangkat Anda.
 
 ## Polaritas tiap kanal
 
-GPIO pendingin 27 kini dikonfigurasi aktif-LOW: ON=LOW, OFF=HIGH.
-Ini berdasarkan laporan indikator relay masih menyala ketika status COOL OFF
-pada firmware aktif-HIGH sebelumnya. Diagnosis ini tetap memerlukan uji fisik.
-GPIO pemanas 26 tetap aktif-HIGH karena belum ada laporan terbalik di kanal itu.
+Pemetaan dikoreksi sesuai kabel yang dilaporkan pemilik: pemanas D27/GPIO27,
+pendingin D26/GPIO26. Kedua kanal disetel aktif-LOW (ON=LOW, OFF=HIGH).
+Laporan OFF membuat kipas hidup, sedangkan HEAT membuat semua mati, cocok dengan
+GPIO26 yang sebelumnya salah diberi fungsi pemanas aktif-HIGH. Pengujian fisik
+kedua kanal tetap diperlukan setelah upload.
 
-Pengaturan terpisah ada di `include/config.h`:
+Pengaturan di `include/config.h`:
 
 ```cpp
-constexpr bool HEATER_ACTIVE_LOW=false;
+constexpr int HEATER_PIN=27, COOLER_PIN=26, WIFI_LED_PIN=2;
+constexpr bool HEATER_ACTIVE_LOW=true;
 constexpr bool COOLER_ACTIVE_LOW=true;
 ```
+
+| Perintah | D27 pemanas | D26 pendingin |
+| --- | --- | --- |
+| OFF | HIGH | HIGH |
+| HEAT | LOW | HIGH |
+| COOL | HIGH | LOW |
 
 Bila indikator pendingin mati tetapi kipas tetap mendapat daya, periksa apakah
 kabel beban memakai COM–NC atau mendapat daya langsung. Untuk beban mati saat
