@@ -3,7 +3,7 @@ import {initializeApp} from 'firebase/app';
 import {getAuth,signInWithEmailAndPassword,signOut,onAuthStateChanged,setPersistence,browserSessionPersistence} from 'firebase/auth';
 import {getDatabase,ref,onValue,query,orderByChild,startAt,startAfter,endAt,limitToFirst,limitToLast,get,runTransaction} from 'firebase/database';
 import {firebaseConfig,DEVICE_ID,OWNER_UID} from './config.js';
-import {online,validReading,commandPayload,historyRows,csvText,wibRange,acceptCommand} from './model.js';
+import {online,validReading,commandPayload,historyRows,csvText,wibRange,acceptCommand,manualTogglePayload} from './model.js';
 import {icon,hydrateIcons} from './icons.js';
 import {BleUpdater} from './ble.js';
 hydrateIcons();
@@ -47,8 +47,8 @@ $('#logout-button').onclick=async()=>{if(ble.busy){toast('Selesaikan atau batalk
 $('#demo-login').onclick=()=>showLogin();
 $('#demo-button').onclick=()=>{
  cleanup();state.demo=true;state.user=null;const t=Date.now();
- state.report={temperature:32.7,humidity:66.9,target:30,mode:'AUTO',heater:false,cooler:true,bluetooth:false,sensorOk:true,alarm:false,rssi:-52,firmware:'1.0.0',receivedAt:t,bootId:'demo',storageOk:true,historyPending:0};
- state.trend=Array.from({length:61},(_,i)=>({id:'demo-'+i,timestamp:t-(60-i)*60000,timeValid:true,temperature:32.7+Math.sin(i/8)*.65+(60-i)/60*.6,humidity:66.9+Math.sin(i/11)*2,target:30,mode:'AUTO',heater:false,cooler:true,sensorOk:true,event:'sample'}));
+ state.report={temperature:32.7,humidity:66.9,target:30,mode:'AUTO',manualPersistent:true,heater:false,cooler:true,bluetooth:false,sensorOk:true,alarm:false,rssi:-52,firmware:'1.0.0',receivedAt:t,bootId:'demo',storageOk:true,historyPending:0};
+ state.trend=Array.from({length:61},(_,i)=>({id:'demo-'+i,timestamp:t-(60-i)*60000,timeValid:true,temperature:32.7+Math.sin(i/8)*.65+(60-i)/60*.6,humidity:66.9+Math.sin(i/11)*2,target:30,mode:'AUTO',manualPersistent:true,heater:false,cooler:true,sensorOk:true,event:'sample'}));
  state.history=[...state.trend];state.historyLoaded=true;showApp();renderHistory();renderChart();
 };
 function connectData(){
@@ -106,15 +106,27 @@ function render(){
  text('#command-notice',state.pending?`${state.pending.label}: ${now()-state.pending.sentAt>25000?'belum ada konfirmasi; jangan mengulang perintah dahulu.':'menunggu konfirmasi ESP32…'}`:'');$('#command-notice').hidden=!state.pending;
  const enabled=canCommand();$$('[data-command]').forEach(b=>b.disabled=!enabled);
  $('#auto-button').classList.toggle('selected',r?.mode==='AUTO');$('#manual-button').classList.toggle('selected',r?.mode==='MANUAL');$('#auto-button').disabled=!enabled||r?.mode==='AUTO';$('#manual-button').disabled=!enabled||r?.mode==='MANUAL';
- const manual=enabled&&r?.mode==='MANUAL';$('#heat-button').disabled=!manual||!fresh||r?.alarm;$('#cool-button').disabled=!manual||!fresh;$('#off-button').disabled=!manual;
- text('#manual-help',r?.mode==='MANUAL'?'Pilih satu aktuator. Setelah durasi berakhir, output kembali OFF kecuali proteksi suhu meminta pendinginan.':'Pilih mode Manual untuk mengendalikan relay.');
- if(document.activeElement!==$('#target-input')&&!$('#target-input').dataset.dirty)$('#target-input').value=Number.isFinite(r?.target)?r.target:'';
+ const manual=enabled&&r?.mode==='MANUAL',persistent=r?.manualPersistent===true;
+ for(const [key,field] of [['heat','heater'],['cool','cooler']]){
+  const active=!!r?.[field],button=$('#'+key+'-button'),label=$('#'+key+'-label');
+  button.setAttribute('aria-checked',String(active));
+  button.disabled=!manual||(!active&&(!fresh||!persistent))||(key==='heat'&&!active&&r?.alarm);
+  label.textContent=!r?'—':(active?'ON':'OFF')+(!on?' · terakhir':'');label.classList.toggle('on',active);
+ }
+ text('#manual-help',!persistent&&!state.demo?'Upload firmware 1.1.0 untuk sakelar tanpa durasi. Perintah OFF tetap tersedia untuk firmware lama.':r?.mode==='MANUAL'?'Mode manual aktif — perintah bertahan sampai dimatikan atau mode diganti. Proteksi tetap aktif.':'Pilih mode Manual untuk mengendalikan perangkat.');
+ if(document.activeElement!==$('#target-input')&&!$('#target-input').dataset.dirty){$('#target-input').value=Number.isFinite(r?.target)?r.target:'';$('#target-slider').value=Number.isFinite(r?.target)?r.target:30;}
+ $('#target-input').disabled=!enabled;
  text('#bt-state',!r?'Belum diketahui':r.bluetooth?'Bluetooth aktif':'Bluetooth nonaktif');$('#bt-on').disabled=!enabled||!!r?.bluetooth;$('#bt-off').disabled=!enabled||!r?.bluetooth;
  $('#history-export').disabled=state.historyBusy||!state.history.length;$('#ble-connect').disabled=state.demo||!state.user||ble.busy||!navigator.bluetooth;updateBleButtons();
 }
-$('#auto-button').onclick=()=>sendCommand('mode',{mode:'AUTO'},'Mode Otomatis');$('#manual-button').onclick=()=>sendCommand('mode',{mode:'MANUAL'},'Mode Manual');$('#target-input').oninput=()=>$('#target-input').dataset.dirty='1';
+$('#auto-button').onclick=()=>sendCommand('mode',{mode:'AUTO'},'Mode Otomatis');$('#manual-button').onclick=()=>sendCommand('mode',{mode:'MANUAL'},'Mode Manual');
+function changeTarget(value){const input=$('#target-input');input.value=Number(Math.max(10,Math.min(39,value)).toFixed(1));input.dataset.dirty='1';$('#target-slider').value=input.value;}
+$('#target-input').oninput=()=>{$('#target-input').dataset.dirty='1';if($('#target-input').validity.valid)$('#target-slider').value=$('#target-input').value;};
+$('#target-slider').oninput=e=>changeTarget(Number(e.target.value));
+$('#target-minus').onclick=()=>changeTarget(Number($('#target-input').value||state.report?.target||30)-0.5);
+$('#target-plus').onclick=()=>changeTarget(Number($('#target-input').value||state.report?.target||30)+0.5);
 $('#target-form').onsubmit=async e=>{e.preventDefault();await sendCommand('settings',{target:Number($('#target-input').value)},'Target suhu');delete $('#target-input').dataset.dirty;};
-for(const [id,output,label] of [['heat-button','HEAT','Pemanas ON'],['cool-button','COOL','Pendingin ON'],['off-button','OFF','Kedua aktuator OFF']])$('#'+id).onclick=()=>sendCommand('manual',{output,leaseSeconds:Number($('#lease-input').value)},label);
+for(const [id,output,label] of [['heat-button','HEAT','Pemanas'],['cool-button','COOL','Pendingin']])$('#'+id).onclick=()=>{const payload=manualTogglePayload(state.report,output);sendCommand('manual',payload,label+(payload.output==='OFF'?' OFF':' ON'));};
 $('#bt-on').onclick=()=>sendCommand('bluetooth',{enabled:true},'Bluetooth ON');$('#bt-off').onclick=()=>sendCommand('bluetooth',{enabled:false},'Bluetooth OFF');
 function addProfile(){const box=$('#wifi-profiles');if(box.children.length>=5){toast('Maksimal lima profil WiFi.',true);return;}const index=box.children.length+1,el=document.createElement('div');el.className='wifi-profile';el.innerHTML=`<div class="profile-heading"><span>JARINGAN ${index}</span><button type="button" class="icon-button remove-profile" aria-label="Hapus jaringan">${icon('close')}</button></div><div class="profile-fields"><div><label>Nama WiFi (SSID)<input class="ssid" autocomplete="off" placeholder="Nama jaringan" required></label></div><div><label>Password WiFi<input class="wifi-password" type="password" autocomplete="new-password" placeholder="Kosong jika jaringan terbuka"></label></div></div>`;el.querySelector('.remove-profile').onclick=()=>{if(box.children.length===1)return;el.remove();[...box.children].forEach((n,i)=>n.querySelector('.profile-heading span').textContent='JARINGAN '+(i+1));};box.append(el);}
 $('#add-wifi').onclick=addProfile;addProfile();

@@ -8,7 +8,8 @@ export function commandPayload(op, values, report, now, id) {
  if(!report?.bootId) throw new Error('Identitas perangkat belum tersedia.');
  if(op==='settings' && (!Number.isFinite(values.target)||values.target<10||values.target>39)) throw new Error('Target harus antara 10–39°C.');
  if(op==='mode' && !['AUTO','MANUAL'].includes(values.mode)) throw new Error('Mode tidak valid.');
- if(op==='manual' && (!['OFF','HEAT','COOL'].includes(values.output)||!Number.isInteger(values.leaseSeconds)||values.leaseSeconds<1||values.leaseSeconds>300)) throw new Error('Durasi manual harus 1–300 detik.');
+ if(op==='manual' && (!['OFF','HEAT','COOL'].includes(values.output)||!Number.isInteger(values.leaseSeconds)||values.leaseSeconds<0||values.leaseSeconds>300)) throw new Error('Perintah manual tidak valid.');
+ if(op==='manual' && values.leaseSeconds===0 && values.output!=='OFF' && report.manualPersistent!==true) throw new Error('Upload firmware 1.1.0 untuk kontrol manual tanpa durasi.');
  if(op==='bluetooth' && typeof values.enabled!=='boolean') throw new Error('Status Bluetooth tidak valid.');
  if(op==='wifi') {
   if(!Array.isArray(values.profiles)||!values.profiles.length||values.profiles.length>5) throw new Error('Isi 1–5 profil WiFi.');
@@ -43,4 +44,10 @@ export function wibRange(from,to) {
 }
 export function acceptCommand(current, next, acknowledged, now) {
  return !(current?.id && current.expiresAt>now && current.id!==acknowledged);
+}
+
+export function manualTogglePayload(report, output) {
+ if(!['HEAT','COOL'].includes(output))throw new Error('Aktuator tidak valid.');
+ const active=output==='HEAT'?report?.heater:report?.cooler;
+ return {output:active?'OFF':output,leaseSeconds:active?60:0};
 }

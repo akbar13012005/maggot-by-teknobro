@@ -38,8 +38,7 @@ hasil `npm run build` di folder docs agar GitHub Pages menampilkan versi terbaru
 
 - **Monitoring:** suhu sensor, kelembapan udara, target, mode, gauge, tren 60 menit,
   status perintah relay, RSSI, versi firmware dan waktu pembaruan.
-- **Kontrol:** AUTO/MANUAL, target 10–39°C, manual HEAT/COOL/OFF dengan lease 30–300
-  detik. Tombol menunggu konfirmasi ESP32 dan dinonaktifkan saat offline/OTA.
+- **Kontrol:** AUTO/MANUAL, target 10–39°C, sakelar pendingin/pemanas tanpa pilihan durasi (firmware 1.1.0). Tombol menunggu konfirmasi ESP32 dan dinonaktifkan saat offline/OTA.
 - **Riwayat:** filter tanggal WIB (maksimal 31 hari), pagination, ekspor CSV semua
   hasil yang dimuat. Pembacaan dipaginasi 1000 record/request; batas 50.000 record
   per rentang. Jika melebihi, pilih rentang lebih pendek. Record tanpa timestamp
@@ -82,11 +81,12 @@ lastResult; tidak menampilkan keberhasilan hanya karena penulisan database sukse
 Tidak ada pengulangan otomatis perintah aktuator. Data lebih tua dari 20 detik
 berstatus offline, kontrol dinonaktifkan, dan nilai terakhir ditandai.
 
-Aktuator manual memiliki lease: pengguna perlu mengirim ulang secara sadar jika
-memerlukan waktu tambahan. Proteksi 40°C di firmware dapat menghidupkan pendingin
-meskipun pengguna mengirim OFF. Status relay adalah perintah, bukan umpan balik
-fisik. Suhu diberi nama **Suhu Sensor**, karena lokasi SHT31 menentukan apa yang
-sebenarnya diukur; kelembapan adalah kelembapan udara.
+Kontrol manual tanpa durasi membutuhkan firmware 1.1.0 di folder `firmware/`.
+Baca `firmware/README.md` untuk mengganti empat file, mempertahankan secrets.h,
+dan memeriksa polaritas relay. Menutup browser tidak mematikan pilihan manual.
+Sensor invalid/OTA membatalkan manual; alarm >=40°C dapat menghidupkan pendingin
+meski pengguna memilih OFF. Status relay adalah perintah, bukan umpan balik fisik.
+Target tetap 10–39°C sesuai firmware. Jeda antaraktuator tetap 3 detik.
 
 ## BLE OTA
 
